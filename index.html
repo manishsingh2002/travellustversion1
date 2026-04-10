@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TripBuddy — Ultimate Flow Prototype (Ultra-Polished)</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            brand: { 50: '#fff7ed', 100: '#ffedd5', 400: '#fb923c', 500: '#f97316', 600: '#ea580c' },
+            accent: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb' }
+          },
+          boxShadow: {
+            'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+            'glow': '0 0 20px rgba(249, 115, 22, 0.3)',
+            'glow-red': '0 0 20px rgba(239, 68, 68, 0.4)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #f1f5f9; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 2rem 1rem; }
+    
+    .phone-shell {
+      width: 390px; height: 844px;
+      background: white; border-radius: 52px;
+      position: relative; overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 12px #0f172a;
+    }
+    
+    .notch {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 120px; height: 32px; background: #0f172a;
+      border-radius: 0 0 20px 20px; z-index: 50;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    .app-screen { display: none; height: 100%; width: 100%; flex-direction: column; background-color: #f8fafc; position: absolute; inset: 0; }
+    .app-screen.active { display: flex; animation: fadeUp 0.3s ease-out forwards; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(249, 115, 22, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } }
+    @keyframes pulse-ring-red { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+    @keyframes heartPop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+    
+    .live-dot-anim { animation: pulse-ring 2s infinite; }
+    .sos-dot-anim { animation: pulse-ring-red 1.5s infinite; }
+
+    /* Staggered Animations */
+    .stagger-1 { animation: fadeUp 0.4s ease-out 0.05s both; }
+    .stagger-2 { animation: fadeUp 0.4s ease-out 0.1s both; }
+    .stagger-3 { animation: fadeUp 0.4s ease-out 0.15s both; }
+    .stagger-4 { animation: fadeUp 0.4s ease-out 0.2s both; }
+
+    .bg-grid-pattern { background-image: linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+
+    /* Map Markers */
+    .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important; border-radius: 12px !important; overflow: hidden; margin-bottom: 90px !important; margin-left: 16px !important; }
+    .leaflet-control-zoom a { background: rgba(255,255,255,0.9) !important; color: #0f172a !important; border-color: #e2e8f0 !important; backdrop-filter: blur(8px); }
+    .leaflet-container .leaflet-control-attribution { display: none; }
+    .live-marker { display: flex; align-items: center; justify-content: center; }
+    .wp-marker { display: flex; align-items: center; justify-content: center; }
+    .vehicle-marker { background: rgba(255,255,255,0.9); backdrop-filter: blur(4px); border: 2px solid #f97316; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 4px 10px rgba(249,115,22,0.3); }
+
+    /* Toast Notification */
+    #toast {
+      position: absolute; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+      background: #0f172a; color: white; padding: 12px 24px; border-radius: 100px;
+      font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 9999;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2); white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body class="text-slate-800">
+
+  <!-- Desktop Controls -->
+  <div class="text-center mb-8">
+    <h1 class="font-display text-3xl font-bold text-slate-900 mb-2">Trip<span class="text-brand-500">Buddy</span></h1>
+    <p class="text-slate-500 text-sm mb-4">Ultra-Polished App Flow Prototype</p>
+    
+    <div class="flex flex-wrap justify-center gap-1.5 max-w-4xl">
+      <button onclick="switchScreen('splash')" class="ctrl-btn active px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Splash</button>
+      <button onclick="switchScreen('home')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Feed</button>
+      <button onclick="openMapView()" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Map</button>
+      <button onclick="switchScreen('log')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Log Stop</button>
+      <button onclick="switchScreen('timeline')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Timeline</button>
+      <button onclick="switchScreen('companions')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-blue-200 text-blue-600 bg-blue-50">Companions</button>
+      <button onclick="switchScreen('channels')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-blue-200 text-blue-600 bg-blue-50">Channels</button>
+      <button onclick="switchScreen('chat')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-blue-200 text-blue-600 bg-blue-50">Group Chat</button>
+      <button onclick="switchScreen('explore')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Explore</button>
+      <button onclick="switchScreen('profile')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Profile</button>
+      <button onclick="switchScreen('utility')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Utility</button>
+      <button onclick="switchScreen('wrap')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">Wrap</button>
+      <button onclick="switchScreen('safety')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-red-200 text-red-600 bg-red-50">Safety</button>
+      <button onclick="switchScreen('compass')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-red-200 text-red-600 bg-red-50">SOS Compass</button>
+      <button onclick="switchScreen('reels')" class="ctrl-btn px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-purple-200 text-purple-600 bg-purple-50">Reels</button>
+    </div>
+  </div>
+
+  <div class="phone-shell">
+    <div class="notch"></div>
+    <div id="toast">Notification</div>
+
+    <!-- 1. SPLASH SCREEN -->
+    <div id="splash" class="app-screen active bg-white">
+      <div class="flex-1 flex flex-col items-center justify-center p-8 relative overflow-hidden">
+        <div class="absolute -top-20 -right-20 w-64 h-64 bg-brand-50 rounded-full blur-3xl transition-transform duration-1000 translate-x-4"></div>
+        <div class="absolute -bottom-20 -left-20 w-64 h-64 bg-accent-50 rounded-full blur-3xl transition-transform duration-1000 -translate-x-4"></div>
+        <div class="w-20 h-20 bg-gradient-to-br from-brand-500 to-amber-400 rounded-2xl flex items-center justify-center text-4xl shadow-glow mb-6 text-white transform hover:scale-105 transition-transform duration-300">🗺️</div>
+        <h1 class="font-display text-4xl font-bold text-slate-900 mb-2">Trip<span class="text-brand-500">Buddy</span></h1>
+        <p class="text-slate-500 text-center text-sm mb-10">Broadcast your journey.<br>Discover the world.</p>
+        <button onclick="switchScreen('home')" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-slate-800 transition active:scale-95 mb-4">Start Your Journey →</button>
+        <button onclick="showToast('Authenticating...')" class="w-full bg-white text-slate-700 font-bold py-4 rounded-2xl border border-slate-200 hover:bg-slate-50 transition active:scale-95">Sign in with Google</button>
+      </div>
+    </div>
+
+    <!-- 2. HOME FEED -->
+    <div id="home" class="app-screen pt-12 pb-20">
+      <div class="flex justify-between items-center px-5 mb-4 shrink-0">
+        <div><p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Feed</p><h2 class="font-display text-2xl font-bold text-slate-900">Discover</h2></div>
+        <div class="flex gap-3 items-center">
+          <button onclick="switchScreen('channels')" class="relative text-2xl active:scale-90 transition">💬<span class="absolute top-0 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full"></span></button>
+          <div onclick="switchScreen('profile')" class="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-400 to-pink-500 text-white flex items-center justify-center font-bold shadow-md cursor-pointer active:scale-90 transition">M</div>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto hide-scrollbar">
+        <!-- Stories -->
+        <div class="flex gap-4 px-5 pb-4 overflow-x-auto hide-scrollbar border-b border-slate-200 mb-4 stagger-1">
+          <div class="flex flex-col items-center gap-1 cursor-pointer shrink-0 active:scale-95 transition" onclick="switchScreen('log')">
+            <div class="w-16 h-16 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xl bg-white">+</div><span class="text-[10px] font-semibold text-slate-600">Add Stop</span>
+          </div>
+          <div class="flex flex-col items-center gap-1 cursor-pointer shrink-0 active:scale-95 transition" onclick="openMapView()">
+            <div class="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-brand-500 to-amber-400 animate-pulse"><div class="w-full h-full bg-white rounded-full flex items-center justify-center text-2xl border-2 border-white">🚂</div></div><span class="text-[10px] font-bold text-brand-600">LIVE</span>
+          </div>
+          <div class="flex flex-col items-center gap-1 cursor-pointer shrink-0">
+            <div class="w-16 h-16 rounded-full p-[2px] bg-slate-200"><div class="w-full h-full bg-slate-100 rounded-full flex items-center justify-center text-2xl border-2 border-white">✈️</div></div><span class="text-[10px] font-semibold text-slate-600">Priya</span>
+          </div>
+        </div>
+
+        <!-- Companion Callout -->
+        <div class="mx-4 mb-6 bg-gradient-to-br from-slate-800 to-slate-900 border border-brand-500 rounded-2xl p-4 flex items-center gap-3 cursor-pointer shadow-lg active:scale-[0.98] transition stagger-2" onclick="switchScreen('companions')">
+          <div class="w-12 h-12 rounded-xl bg-brand-500/20 border border-brand-500 flex items-center justify-center text-2xl shrink-0">👥</div>
+          <div class="flex-1">
+            <h4 class="text-sm font-bold text-white mb-0.5">3 Travelers Nearby · Surat</h4>
+            <p class="text-[10px] text-slate-300">@priya, @rohan, @arjun heading your way</p>
+          </div>
+          <span class="bg-brand-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold">New</span>
+        </div>
+
+        <div id="social-feed"></div>
+      </div>
+    </div>
+
+    <!-- 3. LIVE MAP -->
+    <div id="map" class="app-screen">
+      <div id="leaflet-map" class="absolute inset-0 z-0 bg-slate-100"></div>
+      
+      <div class="absolute top-0 left-0 right-0 p-5 pt-12 bg-gradient-to-b from-white/90 via-white/70 to-transparent z-10 pointer-events-none">
+        <div class="flex justify-between items-center mb-2 pointer-events-auto">
+          <button onclick="switchScreen('home')" class="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-lg hover:bg-slate-50 transition active:scale-95">←</button>
+          <div class="bg-red-50 text-red-600 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm border border-red-100">
+            <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> BROADCASTING
+          </div>
+        </div>
+      </div>
+
+      <!-- Group Watch Pill -->
+      <div class="absolute top-28 right-4 bg-white/90 backdrop-blur border border-brand-500 rounded-full px-3 py-1.5 flex items-center gap-2 shadow-lg z-10 cursor-pointer active:scale-95 transition" onclick="switchScreen('companions')">
+        <div class="flex -space-x-2">
+          <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-brand-400 to-pink-500 border-2 border-white text-[8px] flex justify-center items-center text-white font-bold">P</div>
+          <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-accent-400 to-purple-500 border-2 border-white text-[8px] flex justify-center items-center text-white font-bold">R</div>
+        </div>
+        <span class="text-[10px] font-bold text-brand-600">3 in group</span>
+      </div>
+
+      <div class="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-20 pb-20 pt-2 transition-transform duration-300">
+        <div class="w-10 h-1.5 bg-slate-200 rounded-full mx-auto my-2 cursor-pointer" onclick="switchScreen('timeline')"></div>
+        <div class="px-5 pb-4">
+          <div class="flex justify-between items-start mb-4 cursor-pointer" onclick="switchScreen('timeline')">
+            <div><h3 class="font-display font-bold text-xl text-slate-900" id="hud-title">Journey Active</h3><p class="text-sm text-slate-500"><span id="hud-stops">1</span> Stops · <span id="hud-time">--</span> Elapsed</p></div>
+            <div class="w-10 h-10 bg-brand-50 text-brand-600 rounded-full flex items-center justify-center text-xl shrink-0" id="hud-icon">📍</div>
+          </div>
+          <div class="flex gap-2 overflow-x-auto hide-scrollbar mb-4 pointer-events-auto">
+            <button onclick="switchScreen('chat')" class="shrink-0 bg-accent-50 border border-accent-200 px-4 py-2 rounded-xl text-xs font-bold text-accent-700 flex items-center gap-2 active:scale-95 transition">💬 Group Chat</button>
+            <button onclick="switchScreen('utility')" class="shrink-0 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-xs font-bold text-amber-700 flex items-center gap-2 active:scale-95 transition">🍱 Utilities</button>
+            <button class="shrink-0 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-2 active:scale-95 transition" onclick="fitAllStops()">⛶ Fit Map</button>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="switchScreen('log')" class="flex-1 bg-slate-900 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 shadow-lg active:scale-95 transition-transform pointer-events-auto"><span class="text-lg">📍</span> Log Stop</button>
+            <button onclick="switchScreen('wrap')" class="px-5 bg-red-50 text-red-600 border border-red-200 font-bold py-3.5 rounded-xl flex justify-center items-center shadow-sm active:scale-95 transition-transform pointer-events-auto">🏁 End</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- SOS Float -->
+      <div class="absolute top-1/2 left-4 -translate-y-1/2 z-20">
+        <button onclick="sosAlert()" class="w-12 h-12 bg-red-500 rounded-2xl flex flex-col items-center justify-center shadow-glow-red text-white border-2 border-red-400 active:scale-90 transition">
+          <span class="text-lg leading-none">🆘</span><span class="text-[8px] font-bold mt-0.5 tracking-wider">SOS</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. LOG STOP -->
+    <div id="log" class="app-screen bg-slate-50 pt-12">
+      <div class="flex items-center gap-4 px-5 mb-6 shrink-0">
+        <button onclick="openMapView()" class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-lg active:scale-95 transition">←</button>
+        <h2 class="font-display text-xl font-bold text-slate-900">Log a Stop</h2>
+      </div>
+
+      <form id="post-form" class="flex-1 overflow-y-auto px-5 pb-24 stagger-1">
+        <label class="w-full h-40 bg-white border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-400 mb-6 cursor-pointer hover:bg-slate-50 transition relative overflow-hidden active:scale-[0.98]">
+          <input type="file" id="input-images" accept="image/*" class="hidden">
+          <div id="preview-strip" class="absolute inset-0 hidden"></div>
+          <span class="text-3xl mb-2 z-10 relative pointer-events-none">📸</span>
+          <span class="text-sm font-semibold z-10 relative pointer-events-none bg-white/80 px-2 rounded">Tap to upload media</span>
+        </label>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Caption</label>
+        <textarea id="input-note" class="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-800 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 mb-6 h-24 resize-none" placeholder="What's happening right now?" required></textarea>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mode</label>
+        <div class="flex flex-wrap gap-2 mb-6" id="mode-selector">
+          <div onclick="selectMode('train', this)" class="mode-btn sel px-4 py-2 rounded-full border-2 border-brand-500 bg-brand-50 text-brand-700 text-sm font-bold cursor-pointer transition">🚂 Train</div>
+          <div onclick="selectMode('flight', this)" class="mode-btn px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-600 text-sm font-medium cursor-pointer transition">✈️ Flight</div>
+          <div onclick="selectMode('walk', this)" class="mode-btn px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-600 text-sm font-medium cursor-pointer transition">🥾 Walk</div>
+          <div onclick="selectMode('drive', this)" class="mode-btn px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-600 text-sm font-medium cursor-pointer transition">🚗 Cab</div>
+        </div>
+        <input type="hidden" id="input-mode" value="train">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location</label>
+        <div class="bg-white border border-slate-200 rounded-xl p-2 flex items-center gap-3 mb-6 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
+          <div class="w-10 h-10 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-lg shrink-0 ml-2">📍</div>
+          <input type="text" id="input-location" class="flex-1 bg-transparent border-none text-sm font-bold text-slate-800 outline-none" placeholder="e.g. Mumbai Station" required>
+        </div>
+        
+        <!-- Auto Share Toggle -->
+        <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-4 flex items-center gap-3 mb-6 shadow-lg border border-brand-500">
+          <div class="text-2xl">📡</div>
+          <div class="flex-1"><div class="text-sm font-bold text-white mb-0.5">Auto-share to Group</div><div class="text-[10px] text-slate-400">Mumbai Express Crew</div></div>
+          <div class="w-12 h-6 bg-brand-500 rounded-full relative cursor-pointer" onclick="this.classList.toggle('bg-slate-600'); this.classList.toggle('bg-brand-500'); this.children[0].classList.toggle('translate-x-6');"><div class="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5 shadow transition-transform"></div></div>
+        </div>
+
+        <button type="submit" id="submit-btn" class="w-full bg-brand-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-brand-500/30 active:scale-95 transition-transform flex justify-center items-center gap-2">Post to Timeline</button>
+      </form>
+    </div>
+
+    <!-- 5. TIMELINE -->
+    <div id="timeline" class="app-screen bg-slate-50">
+      <div class="h-48 bg-slate-800 relative overflow-hidden shrink-0 cursor-pointer group" onclick="openMapView()">
+        <div class="absolute inset-0 bg-grid-pattern opacity-10 group-hover:opacity-20 transition-opacity"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent"></div>
+        <button onclick="switchScreen('home'); event.stopPropagation();" class="absolute top-12 left-5 w-10 h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/30 hover:bg-white/30 transition active:scale-95">←</button>
+        <button onclick="switchScreen('chat'); event.stopPropagation();" class="absolute top-12 right-5 bg-white/20 backdrop-blur rounded-full px-3 py-1.5 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition active:scale-95 flex items-center gap-1">💬 Group</button>
+        <div class="absolute bottom-4 left-5 right-5">
+          <h2 class="font-display text-2xl font-bold text-white mb-1" id="tl-main-title">Active Journey 🌍</h2>
+          <div class="flex items-center gap-2 text-white/80 text-xs"><div class="w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center text-[8px] text-white font-bold">Y</div>You · Live Broadcasting</div>
+        </div>
+      </div>
+      <div class="flex bg-white/90 backdrop-blur-md border-b border-slate-200 p-4 shrink-0 shadow-sm z-10 relative">
+        <div class="flex-1 text-center border-r border-slate-100"><div class="font-display font-bold text-lg text-slate-900" id="tl-dist">0</div><div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">KM</div></div>
+        <div class="flex-1 text-center border-r border-slate-100"><div class="font-display font-bold text-lg text-slate-900" id="tl-time">0h</div><div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Elapsed</div></div>
+        <div class="flex-1 text-center"><div class="font-display font-bold text-lg text-brand-500" id="tl-stops">1</div><div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stops</div></div>
+      </div>
+      <div id="tl-wrap" class="flex-1 overflow-y-auto px-5 py-6 pb-24"></div>
+    </div>
+
+    <!-- 6. EXPLORE -->
+    <div id="explore" class="app-screen pt-12 pb-20 bg-white">
+      <div class="px-5 mb-4">
+        <h2 class="font-display text-3xl font-bold text-slate-900 mb-4">Explore</h2>
+        <div class="bg-slate-100 rounded-xl p-3 flex items-center gap-3 mb-4 focus-within:ring-2 focus-within:ring-brand-500 transition-shadow">
+          <span class="text-slate-400">🔍</span>
+          <input type="text" placeholder="Search routes, friends..." class="bg-transparent border-none text-sm w-full focus:outline-none text-slate-800">
+        </div>
+        <div class="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+          <span class="shrink-0 bg-slate-900 text-white px-4 py-1.5 rounded-full text-xs font-bold">All</span>
+          <span class="shrink-0 bg-slate-50 border border-slate-200 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer hover:bg-slate-100 transition" onclick="showToast('Filtered: Trains')">🚂 Trains</span>
+          <span class="shrink-0 bg-slate-50 border border-slate-200 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer hover:bg-slate-100 transition" onclick="showToast('Filtered: Mountains')">🏔️ Mountains</span>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5">
+        <div onclick="switchScreen('reels')" class="stagger-1 w-full bg-slate-900 rounded-2xl p-5 mb-6 relative overflow-hidden flex flex-col justify-between h-36 cursor-pointer active:scale-[0.98] transition-transform shadow-lg shadow-brand-500/20">
+          <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500 rounded-full blur-3xl opacity-30"></div>
+          <div><h3 class="font-display text-white font-bold text-lg">Live Globe 🌍</h3><p class="text-slate-400 text-xs mt-1">See everyone traveling right now.</p></div>
+          <div class="self-start bg-white/10 backdrop-blur border border-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-2"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> 247 Active</div>
+        </div>
+        
+        <h3 class="font-bold text-slate-900 mb-3 stagger-2">Trending Templates</h3>
+        <div class="flex flex-col gap-3 mb-6 stagger-3">
+          <div class="bg-white border border-slate-200 rounded-xl p-3 flex gap-3 shadow-sm cursor-pointer hover:border-brand-300 active:scale-[0.98] transition" onclick="switchScreen('timeline')">
+            <div class="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-2xl shrink-0">🏔️</div>
+            <div class="flex-1"><h4 class="font-bold text-sm text-slate-900 line-clamp-1">Manali → Leh Highway</h4><p class="text-[10px] text-slate-500 mb-2">2,480 km · by @rohan</p><div class="text-[9px] font-bold text-brand-600 bg-brand-50 inline-block px-2 py-0.5 rounded border border-brand-100">Use Template</div></div>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-3 mt-2 stagger-4">
+          <h3 class="font-bold text-slate-900">📍 Near You · Surat</h3>
+          <span class="text-[10px] font-bold text-brand-500 cursor-pointer" onclick="openMapView()">Map →</span>
+        </div>
+        <div class="stagger-4 bg-white border border-slate-200 rounded-2xl p-4 flex gap-3 items-center shadow-sm cursor-pointer hover:border-brand-300 active:scale-[0.98] transition" onclick="switchScreen('channels')">
+          <div class="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center text-xl shrink-0">👥</div>
+          <div class="flex-1">
+            <h4 class="font-bold text-sm text-slate-900">3 travelers at Surat Station</h4>
+            <p class="text-[10px] text-slate-500 mb-1">@karan, @meera, @dev are nearby</p>
+            <div class="text-[10px] font-bold text-brand-500">Join Local Chat →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. PROFILE -->
+    <div id="profile" class="app-screen bg-slate-50 pb-20">
+      <div class="h-40 bg-slate-900 relative">
+        <div class="absolute inset-0 bg-gradient-to-br from-brand-600/40 to-purple-600/40"></div>
+        <div class="absolute -bottom-10 left-5"><div class="w-20 h-20 bg-white rounded-full p-1 shadow-md"><div class="w-full h-full bg-slate-200 rounded-full flex items-center justify-center text-2xl">👨🏽‍🦱</div></div></div>
+        <button onclick="switchScreen('home')" class="absolute top-12 left-5 w-10 h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/30 hover:bg-white/30 transition active:scale-95">←</button>
+        <button onclick="switchScreen('safety')" class="absolute top-12 right-5 bg-white/20 backdrop-blur rounded-full px-3 py-1.5 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition active:scale-95">🛡️ Safety</button>
+      </div>
+      <div class="px-5 pt-14 pb-4 bg-white border-b border-slate-200 shrink-0">
+        <div class="flex justify-between items-start">
+          <div>
+            <h2 class="font-display text-2xl font-bold text-slate-900">Manish Patel</h2>
+            <p class="text-sm text-slate-500 mb-3">@manish.wanderlust · ⚡ Explorer Pro</p>
+          </div>
+          <button class="bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 active:scale-95 transition hover:bg-slate-200" onclick="showToast('Profile settings opened')">Edit</button>
+        </div>
+        <div class="flex justify-between text-center px-2 mb-2">
+          <div><div class="font-display font-bold text-lg text-slate-900">28</div><div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Trips</div></div>
+          <div><div class="font-display font-bold text-lg text-slate-900">18k</div><div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Km</div></div>
+          <div><div class="font-display font-bold text-lg text-slate-900">247</div><div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Followers</div></div>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto p-5">
+        <h3 class="font-bold text-slate-900 mb-3">Journey Archive</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm cursor-pointer active:scale-95 transition hover:border-brand-300" onclick="switchScreen('wrap')">
+            <div class="h-24 bg-slate-100 flex items-center justify-center text-3xl relative">🏔️<span class="absolute bottom-2 left-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur">🚗 Road</span></div>
+            <div class="p-3"><h4 class="font-bold text-xs text-slate-900 mb-1">Surat → Leh</h4><p class="text-[10px] text-slate-500">2,480 km · View Wrap</p></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm cursor-pointer active:scale-95 transition hover:border-brand-300" onclick="switchScreen('timeline')">
+            <div class="h-24 bg-slate-100 flex items-center justify-center text-3xl relative">🌊<span class="absolute bottom-2 left-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur">🚂 Train</span></div>
+            <div class="p-3"><h4 class="font-bold text-xs text-slate-900 mb-1">Goa Weekend</h4><p class="text-[10px] text-slate-500">847 km · View Timeline</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. TRAIN UTILITY -->
+    <div id="utility" class="app-screen bg-slate-50 pt-12 pb-20">
+      <div class="flex items-center gap-4 px-5 mb-4 shrink-0">
+        <button onclick="openMapView()" class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-lg active:scale-95 transition">←</button>
+        <div>
+          <div class="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-bold mb-1 border border-amber-200">🚂 Train Mode Active</div>
+          <h2 class="font-display text-xl font-bold text-slate-900">Smart Utilities</h2>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5">
+        <div class="stagger-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-5 mb-5 shadow-lg text-white">
+          <div class="flex justify-between items-start mb-2">
+            <div class="text-[10px] text-green-400 font-bold tracking-widest uppercase">PNR Status</div>
+            <button class="text-[10px] bg-white/10 px-2 py-1 rounded border border-white/20 hover:bg-white/20 transition" onclick="showToast('Refreshing PNR...')">Refresh</button>
+          </div>
+          <div class="font-mono text-xl font-bold tracking-widest mb-3">4812 2947 61</div>
+          <div class="text-sm font-bold mb-1">Rajdhani Express #12951</div>
+        </div>
+        <h3 class="font-bold text-slate-900 text-sm mb-3 stagger-2">🍱 Food Delivery at Next Station (Surat)</h3>
+        <div class="stagger-3 bg-white border border-slate-200 rounded-2xl p-3 flex items-center gap-3 mb-3 shadow-sm hover:shadow-md transition">
+          <div class="w-16 h-16 bg-orange-50 rounded-xl flex items-center justify-center text-2xl shrink-0">🍛</div>
+          <div class="flex-1"><h4 class="font-bold text-sm text-slate-900">Thali Combo</h4><div class="text-xs font-bold text-green-600">₹149</div></div>
+          <button class="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition hover:bg-brand-500" onclick="showToast('Added to cart: Thali Combo')">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. WRAP -->
+    <div id="wrap" class="app-screen bg-slate-900 text-white pt-12 pb-20">
+      <div class="px-5 mb-6 flex items-center gap-3">
+        <button onclick="switchScreen('profile')" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center border border-white/20 hover:bg-white/20 transition active:scale-95">←</button>
+        <h2 class="font-display text-xl font-bold">Journey Wrap 🎉</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5">
+        <div class="stagger-1 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-3xl p-6 text-center mb-6 shadow-xl relative overflow-hidden">
+          <div class="absolute -top-10 -right-10 w-32 h-32 bg-brand-500 rounded-full blur-3xl opacity-20"></div>
+          <div class="text-5xl mb-2 hover:scale-110 transition-transform cursor-pointer">🏔️</div><h3 class="font-display text-2xl font-bold mb-1">Surat → Leh Epic</h3>
+          <div class="flex justify-center gap-2 mt-4">
+            <div class="bg-slate-800 px-3 py-2 rounded-lg border border-slate-700"><div class="font-bold text-brand-400">2,480</div><div class="text-[8px] text-slate-400 uppercase">KM</div></div>
+            <div class="bg-slate-800 px-3 py-2 rounded-lg border border-slate-700"><div class="font-bold text-white">18</div><div class="text-[8px] text-slate-400 uppercase">Stops</div></div>
+          </div>
+        </div>
+        <div class="stagger-2 bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+          <div class="flex items-center gap-2 mb-2"><span class="text-lg">🤖</span><h4 class="font-bold text-sm">AI Narrator</h4></div>
+          <p class="text-xs text-slate-300 italic leading-relaxed">"From the chai stalls of Surat's old city to the silence of Pangong Lake at 14,000 feet..."</p>
+        </div>
+        <div class="stagger-3 grid grid-cols-2 gap-3">
+          <button class="bg-brand-500 text-white font-bold py-3 rounded-xl text-sm shadow-md active:scale-95 transition hover:bg-brand-600" onclick="showToast('Link Copied to Clipboard!')">🔗 Share Link</button>
+          <button class="bg-white text-slate-900 font-bold py-3 rounded-xl text-sm shadow-md active:scale-95 transition hover:bg-slate-100" onclick="showToast('Exporting Video...')">🎬 Export Reel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. SAFETY -->
+    <div id="safety" class="app-screen bg-slate-50 pt-12 pb-20">
+      <div class="px-5 mb-6 flex items-center gap-3">
+        <button onclick="switchScreen('profile')" class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-lg active:scale-95 transition">←</button>
+        <h2 class="font-display text-2xl font-bold text-slate-900">Safety Hub 🛡️</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5">
+        <div class="stagger-1 bg-red-500 text-white rounded-3xl p-5 mb-5 shadow-[0_10px_30px_rgba(239,68,68,0.3)] cursor-pointer active:scale-[0.98] transition-transform" onclick="switchScreen('compass')">
+          <h3 class="font-display font-bold text-xl mb-1">🆘 Emergency SOS</h3>
+          <p class="text-xs text-red-100 mb-4">Sends exact GPS to all trusted contacts.</p>
+          <button class="w-full bg-white text-red-600 font-bold py-3 rounded-xl text-sm pointer-events-none shadow-sm">Hold 3s or Tap to Activate</button>
+        </div>
+        <div class="stagger-2 bg-white border border-slate-200 rounded-2xl p-4 mb-4 shadow-sm flex justify-between items-center cursor-pointer" onclick="this.children[1].click()">
+          <div><h4 class="font-bold text-slate-900 text-sm">👻 Ghost Mode</h4><p class="text-[10px] text-slate-500">Freeze public location broadcast</p></div>
+          <div class="w-12 h-6 bg-slate-200 rounded-full relative transition-colors duration-300" onclick="event.stopPropagation(); this.classList.toggle('bg-brand-500'); this.children[0].classList.toggle('translate-x-6'); showToast(this.classList.contains('bg-brand-500') ? 'Ghost Mode On' : 'Ghost Mode Off');"><div class="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 shadow transition-transform duration-300"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. COMPASS SOS -->
+    <div id="compass" class="app-screen bg-white pt-12 pb-8 overflow-hidden relative">
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+        <div class="w-64 h-64 border border-red-200 rounded-full absolute animate-ping opacity-70"></div>
+        <div class="w-96 h-96 border border-red-100 rounded-full absolute"></div>
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-red-50/50"></div>
+      </div>
+      <div class="relative z-10 flex flex-col items-center text-center px-5">
+        <div class="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-4 shadow-sm flex items-center gap-2"><span class="w-2 h-2 bg-red-500 rounded-full sos-dot-anim"></span> Live Tracking Active</div>
+        <h2 class="font-display text-3xl font-bold text-slate-900 mb-1">Finding Rahul</h2>
+        <p class="text-sm text-slate-500">High-frequency GPS locked</p>
+      </div>
+      <div class="flex-1 flex flex-col items-center justify-center relative z-10">
+        <div class="w-48 h-48 relative transform rotate-45 transition-transform duration-500 drop-shadow-xl mb-8 hover:rotate-[60deg] cursor-pointer">
+          <svg viewBox="0 0 100 100" class="w-full h-full"><path d="M50 0 L100 100 L50 75 L0 100 Z" fill="#ef4444" /></svg>
+        </div>
+        <div class="font-mono text-5xl font-bold text-slate-900 tracking-tighter mb-2">400<span class="text-2xl text-slate-400">m</span></div>
+        <p class="text-sm font-bold text-slate-600">Walk ahead and slightly right</p>
+      </div>
+      <div class="px-5 w-full relative z-10 flex gap-3 flex-col">
+        <div class="flex gap-3">
+          <button class="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl text-sm border border-slate-200 active:scale-95 transition shadow-sm" onclick="showToast('Flashlight On')">🔦 Flash</button>
+          <button class="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl text-sm border border-slate-200 active:scale-95 transition shadow-sm" onclick="showToast('Calling Rahul...')">📞 Call</button>
+        </div>
+        <button onclick="switchScreen('chat'); showToast('Buddy Session Ended');" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl text-sm shadow-lg shadow-green-500/30 active:scale-95 transition">✅ Buddy Found (End Session)</button>
+      </div>
+    </div>
+
+    <!-- 12. WANDER REELS -->
+    <div id="reels" class="app-screen bg-black">
+      <img src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?q=80&w=800&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-80" ondblclick="doubleTapLike(this)">
+      <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none"></div>
+      
+      <div class="absolute top-12 left-5 right-5 flex justify-between items-center z-10">
+        <div class="flex gap-4"><span class="text-white/60 font-bold text-sm cursor-pointer hover:text-white transition">Following</span><span class="text-white font-bold text-sm border-b-2 border-white pb-1 cursor-pointer">Explore</span></div><span class="text-white text-xl cursor-pointer hover:scale-110 transition">🔍</span>
+      </div>
+      
+      <div class="absolute bottom-28 right-4 flex flex-col gap-6 items-center z-10">
+        <div class="flex flex-col items-center gap-1 cursor-pointer hover:scale-110 transition" onclick="showToast('Liked!')"><div class="w-10 h-10 bg-black/40 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/20">🤍</div><span class="text-[10px] font-bold text-white shadow-sm">12k</span></div>
+        <div class="flex flex-col items-center gap-1 cursor-pointer hover:scale-110 transition" onclick="showToast('Opening comments')"><div class="w-10 h-10 bg-black/40 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/20">💬</div><span class="text-[10px] font-bold text-white shadow-sm">428</span></div>
+        <div class="flex flex-col items-center gap-1 cursor-pointer hover:scale-110 transition" onclick="showToast('Shared!')"><div class="w-10 h-10 bg-black/40 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/20">↗</div><span class="text-[10px] font-bold text-white shadow-sm">Share</span></div>
+      </div>
+      
+      <div class="absolute bottom-24 left-4 right-16 z-10">
+        <div class="flex items-center gap-2 mb-2"><div class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-slate-800">P</div><span class="text-sm font-bold text-white">@priya.travels</span><button class="bg-white/20 backdrop-blur border border-white/40 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 hover:bg-white hover:text-slate-900 transition" onclick="showToast('Following @priya.travels')">Follow</button></div>
+        <p class="text-xs text-white mb-3 text-shadow-sm">Waking up at 14,000 feet. The colors of Pangong Lake are unreal. #ladakh</p>
+        <button onclick="openMapView()" class="bg-black/60 backdrop-blur border border-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-2 hover:bg-black/80 transition active:scale-95">📍 Pangong Tso <span class="text-brand-400 ml-1">Map →</span></button>
+      </div>
+
+      <!-- Reels Custom Bottom Nav -->
+      <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent flex items-center justify-around px-2 z-20">
+        <button onclick="switchScreen('home')" class="text-white/60 hover:text-white text-xl p-2 transition">🏠</button>
+        <button onclick="switchScreen('explore')" class="text-white/60 hover:text-white text-xl p-2 transition">🔭</button>
+        <button onclick="switchScreen('log')" class="text-white text-2xl p-2 hover:scale-110 transition">➕</button>
+        <button class="text-brand-500 text-xl p-2 relative">🎬<span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-500 rounded-full"></span></button>
+        <button onclick="switchScreen('profile')" class="text-white/60 hover:text-white text-xl p-2 transition">👤</button>
+      </div>
+    </div>
+
+    <!-- 13. COMPANIONS -->
+    <div id="companions" class="app-screen bg-slate-50 pt-12 pb-20">
+      <div class="px-5 mb-4 shrink-0 flex items-center gap-3">
+        <button onclick="switchScreen('home')" class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-lg active:scale-95 transition">←</button>
+        <div><h2 class="font-display text-2xl font-bold text-slate-900">Companions 👥</h2><p class="text-xs text-slate-500">Find travelers on your route.</p></div>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+        <div class="stagger-1 mx-5 mb-6 h-36 bg-slate-100 rounded-2xl relative overflow-hidden cursor-pointer border border-slate-200 shadow-sm hover:shadow-md transition" onclick="openMapView()">
+          <div class="absolute inset-0 bg-grid-pattern opacity-50"></div>
+          <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+            <div class="w-4 h-4 rounded-full bg-brand-500 border-2 border-white shadow-glow relative z-10"></div>
+            <div class="absolute w-8 h-8 rounded-full border-2 border-brand-500 animate-ping opacity-50"></div>
+            <span class="bg-white text-slate-900 text-[9px] font-bold px-2 py-0.5 rounded shadow mt-1">You</span>
+          </div>
+          <div class="absolute top-[38%] left-[62%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+            <div class="w-3 h-3 rounded-full bg-accent-500 border border-white"></div>
+            <span class="bg-white text-slate-900 text-[9px] font-bold px-2 py-0.5 rounded shadow mt-1">@priya</span>
+          </div>
+          <div class="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur text-brand-600 text-[10px] font-bold px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">🎯 3 travelers nearby</div>
+        </div>
+
+        <h3 class="font-bold text-slate-900 text-xs px-5 mb-3 uppercase tracking-wider stagger-2">Nearby on your route</h3>
+        
+        <div class="stagger-3 mx-5 mb-3 bg-white border border-slate-200 rounded-2xl p-4 flex gap-3 items-center shadow-sm hover:border-brand-200 transition">
+          <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-accent-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg relative shrink-0">P<div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div></div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-bold text-sm text-slate-900">Priya Sharma</h4>
+            <p class="text-[10px] text-slate-500 truncate">→ Goa · Same train</p>
+            <div class="flex gap-1 mt-1.5"><span class="bg-slate-100 text-slate-600 text-[9px] px-2 py-0.5 rounded border border-slate-200 font-semibold">🚂 Same train</span></div>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button onclick="switchScreen('chat')" class="w-9 h-9 rounded-xl bg-accent-50 text-accent-600 border border-accent-200 flex items-center justify-center text-lg active:scale-95 transition">💬</button>
+            <button onclick="showToast('Request sent')" class="w-9 h-9 rounded-xl bg-green-50 text-green-600 border border-green-200 flex items-center justify-center text-lg active:scale-95 transition">➕</button>
+          </div>
+        </div>
+
+        <h3 class="font-bold text-slate-900 text-xs px-5 mb-3 uppercase tracking-wider mt-4 stagger-4">Travel Groups</h3>
+        
+        <div class="stagger-4 mx-5 mb-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm cursor-pointer hover:border-brand-300 transition" onclick="switchScreen('chat')">
+          <div class="flex gap-3 items-center mb-3">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-2xl shrink-0">🚂</div>
+            <div class="flex-1">
+              <h4 class="font-bold text-sm text-slate-900">Mumbai Express Crew</h4>
+              <p class="text-[10px] text-slate-500">Mumbai → Goa · 6 members</p>
+            </div>
+            <span class="bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded-full text-[9px] font-bold shadow-sm flex items-center gap-1"><span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>Live</span>
+          </div>
+          <button class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl active:scale-95 transition mt-2 border border-slate-200">Open Chat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 14. CHANNELS / MESSAGES LIST -->
+    <div id="channels" class="app-screen bg-white pt-12 pb-20">
+      <div class="px-5 mb-4 flex justify-between items-center">
+        <h2 class="font-display text-3xl font-bold text-slate-900">Messages</h2>
+        <div class="flex gap-2">
+          <button class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm hover:bg-slate-200 transition">🔍</button>
+          <button onclick="switchScreen('companions')" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm hover:bg-slate-200 transition">✏️</button>
+        </div>
+      </div>
+      <div class="flex gap-2 px-5 mb-2 overflow-x-auto hide-scrollbar">
+        <button class="bg-slate-900 text-white px-4 py-1.5 rounded-full text-xs font-bold shrink-0">All</button>
+        <button class="bg-slate-50 border border-slate-200 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold shrink-0 hover:bg-slate-100 transition">Companions</button>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+        <div class="stagger-1 p-4 mx-4 my-2 bg-red-50 border border-red-200 rounded-2xl flex gap-3 cursor-pointer active:scale-[0.98] transition shadow-sm hover:shadow-md" onclick="switchScreen('chat')">
+          <div class="w-12 h-12 bg-red-100 text-red-500 rounded-xl flex items-center justify-center text-xl shrink-0">🆘</div>
+          <div class="flex-1">
+            <div class="flex justify-between mb-1"><h4 class="font-bold text-sm text-red-600">SOS from @priya</h4><span class="text-[10px] font-bold text-red-400">2m ago</span></div>
+            <div class="flex justify-between items-center"><p class="text-xs text-slate-800 line-clamp-1">I'm at Dadar station, feel unsafe...</p><span class="bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm ml-2 shrink-0">SOS</span></div>
+          </div>
+        </div>
+        
+        <div class="stagger-2 p-4 border-b border-slate-100 flex gap-3 cursor-pointer hover:bg-slate-50 transition" onclick="switchScreen('chat')">
+          <div class="w-12 h-12 bg-brand-50 text-brand-500 rounded-xl flex items-center justify-center text-xl shrink-0 relative">🚂<div class="absolute -bottom-1 -right-1 bg-brand-500 text-white text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">6</div></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between mb-1"><h4 class="font-bold text-sm text-slate-900 truncate">Mumbai Express Crew</h4><span class="text-[10px] text-slate-400 shrink-0">3m</span></div>
+            <div class="flex justify-between items-center"><p class="text-xs text-slate-500 truncate pr-2">Priya: Just crossed Panvel bridge!! 🌊🔥</p><span class="bg-brand-500 text-white text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">5</span></div>
+          </div>
+        </div>
+
+        <div class="stagger-3 p-4 border-b border-slate-100 flex gap-3 cursor-pointer hover:bg-slate-50 transition" onclick="switchScreen('chat')">
+          <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-accent-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg relative shrink-0">P<div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between mb-1"><h4 class="font-bold text-sm text-slate-900 truncate">Priya Sharma</h4><span class="text-[10px] text-slate-400 shrink-0">7m</span></div>
+            <div class="flex justify-between items-center"><p class="text-xs text-slate-500 truncate pr-2">📍 Location shared · Dadar Station</p><span class="bg-brand-500 text-white text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">2</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 15. INDIVIDUAL CHAT VIEW -->
+    <div id="chat" class="app-screen bg-slate-50">
+      <div class="pt-12 pb-3 px-4 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center gap-3 shrink-0 z-20 shadow-sm">
+        <button onclick="switchScreen('channels')" class="text-2xl text-slate-400 hover:text-slate-600 px-2 active:scale-90 transition">←</button>
+        <div class="w-10 h-10 bg-brand-50 text-brand-500 rounded-xl flex items-center justify-center text-xl shrink-0">🚂</div>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-bold text-sm text-slate-900 truncate">Mumbai Express Crew</h3>
+          <p class="text-[10px] text-green-500 flex items-center gap-1 font-semibold"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> 6 members · 4 online</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="openMapView()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm active:scale-95 transition hover:bg-slate-200">🗺️</button>
+          <button onclick="sosAlert()" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 border border-red-200 flex items-center justify-center text-sm active:scale-95 transition hover:bg-red-100">🆘</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-20" id="chat-msgs">
+        <div class="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200/50 py-1 px-3 rounded-full mx-auto w-max">📍 Journey started · Mumbai → Goa</div>
+        
+        <div class="flex gap-2 items-end">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-accent-500 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-4">P</div>
+          <div>
+            <div class="text-[9px] text-slate-500 ml-1 mb-0.5">Priya</div>
+            <div class="bg-white border border-slate-200 text-slate-800 p-3 rounded-2xl rounded-bl-sm text-xs shadow-sm max-w-[250px]">Hey everyone! Just boarded at CST 🚂 Platform 5. Who else is on Konkan Kanya?</div>
+            <div class="text-[9px] text-slate-400 mt-1">8:02 AM</div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 items-end flex-row-reverse">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-brand-400 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-4">M</div>
+          <div class="flex flex-col items-end">
+            <div class="bg-brand-500 text-white p-3 rounded-2xl rounded-br-sm text-xs shadow-sm max-w-[250px]">Coming! I'm in B3. Ordered chai 🍵 Want anything?</div>
+            <div class="text-[9px] text-slate-400 mt-1">8:07 AM</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="absolute bottom-0 left-0 right-0 p-3 bg-white/90 backdrop-blur-md border-t border-slate-200 flex items-center gap-2 z-20">
+        <button class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-lg active:scale-95 transition hover:bg-slate-200" onclick="showAttachMenu()">+</button>
+        <input type="text" id="chat-input-field" placeholder="Message group..." class="flex-1 bg-slate-100 border-none rounded-full px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-brand-500" onkeydown="if(event.key==='Enter') sendChatMsg()">
+        <button class="w-10 h-10 rounded-full bg-brand-500 text-white flex items-center justify-center text-lg shadow-md active:scale-90 transition transform hover:-translate-y-0.5" onclick="sendChatMsg()">↑</button>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAV (Global) -->
+    <div id="global-nav" class="absolute bottom-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-xl border-t border-slate-200 flex items-center justify-around px-2 z-50 pb-2 transition-transform duration-300 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+      <button id="nav-home" onclick="switchScreen('home')" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-brand-500 transition">
+        <span class="text-xl">🏠</span><span class="text-[9px] font-bold uppercase tracking-wider">Feed</span>
+      </button>
+      <button id="nav-explore" onclick="switchScreen('explore')" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-brand-500 transition">
+        <span class="text-xl">🔭</span><span class="text-[9px] font-bold uppercase tracking-wider">Explore</span>
+      </button>
+      <button onclick="switchScreen('log')" class="w-12 h-12 bg-slate-900 text-white rounded-full flex items-center justify-center text-xl shadow-lg -mt-4 active:scale-95 transition hover:bg-brand-500">
+        ➕
+      </button>
+      <button id="nav-channels" onclick="switchScreen('channels')" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-brand-500 transition">
+        <span class="text-xl">💬</span><span class="text-[9px] font-bold uppercase tracking-wider">Chats</span>
+      </button>
+      <button id="nav-profile" onclick="switchScreen('profile')" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-brand-500 transition">
+        <span class="text-xl">👤</span><span class="text-[9px] font-bold uppercase tracking-wider">Profile</span>
+      </button>
+    </div>
+
+  </div> <!-- /Phone Shell -->
+
+  <!-- LEAFLET JS ENGINE -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    /* ═══════════════════════════════════════════════════
+       DYNAMIC TIME & MICRO-INTERACTIONS
+    ═══════════════════════════════════════════════════ */
+    function updateTime() {
+      const now = new Date();
+      let hours = now.getHours();
+      let minutes = now.getMinutes();
+      hours = hours % 12 || 12;
+      minutes = minutes < 10 ? '0' + minutes : minutes;
+      document.querySelectorAll('.status-time').forEach(el => el.textContent = `${hours}:${minutes}`);
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    function doubleTapLike(element) {
+      const heart = document.createElement('div');
+      heart.innerHTML = '❤️';
+      heart.className = 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl drop-shadow-2xl z-50 pointer-events-none';
+      heart.style.animation = 'heartPop 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+      element.parentElement.appendChild(heart);
+      setTimeout(() => heart.remove(), 1000);
+      showToast('Liked!');
+    }
+
+    /* ═══════════════════════════════════════════════════
+       TOAST & ROUTING LOGIC
+    ═══════════════════════════════════════════════════ */
+    let toastQueue = [];
+    let isToastShowing = false;
+
+    function showToast(msg) {
+      toastQueue.push(msg);
+      processToastQueue();
+    }
+
+    function processToastQueue() {
+      if (isToastShowing || toastQueue.length === 0) return;
+      isToastShowing = true;
+      const msg = toastQueue.shift();
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+        isToastShowing = false;
+        setTimeout(processToastQueue, 300); // small gap between toasts
+      }, 2000);
+    }
+
+    const noNavScreens = ['splash', 'reels', 'compass', 'map', 'log', 'wrap', 'chat'];
+    
+    function switchScreen(id) {
+      document.querySelectorAll('.app-screen').forEach(el => el.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      
+      document.querySelectorAll('.ctrl-btn').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-offset-1', 'ring-brand-500');
+        if(btn.innerText.toLowerCase().includes(id.substring(0,4))) {
+          btn.classList.add('ring-2', 'ring-offset-1', 'ring-brand-500');
+        }
+      });
+
+      document.querySelectorAll('#global-nav button').forEach(btn => {
+        btn.classList.remove('text-brand-500');
+        btn.classList.add('text-slate-400');
+      });
+      if (document.getElementById('nav-' + id)) {
+        document.getElementById('nav-' + id).classList.remove('text-slate-400');
+        document.getElementById('nav-' + id).classList.add('text-brand-500');
+      }
+
+      const nav = document.getElementById('global-nav');
+      if (noNavScreens.includes(id)) {
+        nav.style.transform = 'translateY(100%)';
+      } else {
+        nav.style.transform = 'translateY(0)';
+      }
+
+      if (id === 'chat') {
+        const msgs = document.getElementById('chat-msgs');
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       APP STATE & FUNCTIONAL MAP ENGINE
+    ═══════════════════════════════════════════════════ */
+    const MODE_SPEEDS = { train:80, flight:800, walk:5, drive:60 };
+    const ICONS = { train:'🚂', flight:'✈️', walk:'🥾', drive:'🚗' };
+    
+    let G = {
+      journey: [
+        { lat: 21.1702, lng: 72.8311, mode: 'train', icon: '🚂', title: 'Surat Railway Station', note: 'Boarding the Rajdhani. The journey begins! 🌅', author: 'You', time: 'Just Now', likes: 12, images: null }
+      ],
+      map: null, tileLayer: null, routeLayer: null,
+      liveMarker: null, vehicleMarker: null,
+      isTracking: true
+    };
+
+    function modeColor(m){ return {train:'#f59e0b', walk:'#10b981', drive:'#64748b', flight:'#3b82f6'}[m] || '#f97316'; }
+    function modeDash(m){ return {train:'10 6', walk:'4 6', drive:null, flight:'10 10'}[m] || '8 6'; }
+    function getDistKm(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+    const mkLive = () => L.divIcon({className:'live-marker', html:'<div class="w-4 h-4 bg-brand-500 rounded-full border-2 border-white shadow-glow live-dot-anim"></div>', iconSize:[16,16], iconAnchor:[8,8]});
+    const mkWp = () => L.divIcon({className:'wp-marker', html:'<div class="w-3 h-3 bg-slate-800 rounded-full border-2 border-white shadow-sm"></div>', iconSize:[12,12], iconAnchor:[6,6]});
+    const mkVehicle = (emoji) => L.divIcon({className:'vehicle-marker', html:emoji, iconSize:[36,36], iconAnchor:[18,18]});
+
+    function openMapView() {
+      switchScreen('map');
+      setTimeout(() => { 
+        if(!G.map) initMap();
+        else G.map.invalidateSize(); 
+      }, 100);
+    }
+
+    async function initMap() {
+      if (G.map) return;
+      const s0 = G.journey[0];
+      G.map = L.map('leaflet-map', { zoomControl:false, zoomAnimation:true }).setView([s0.lat, s0.lng], 13);
+      L.control.zoom({ position:'bottomleft' }).addTo(G.map);
+      G.tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom:19 }).addTo(G.map);
+      G.routeLayer = L.layerGroup().addTo(G.map);
+      
+      const last = G.journey.at(-1);
+      G.liveMarker = L.marker([last.lat, last.lng], { icon: mkLive() }).addTo(G.routeLayer);
+      G.vehicleMarker = L.marker([last.lat, last.lng], { icon: mkVehicle(last.icon) }).addTo(G.routeLayer);
+      
+      updateAllViews();
+    }
+
+    async function appendSegment(newStop, prev) {
+      if (!prev) return;
+      
+      const color = modeColor(newStop.mode), dash = modeDash(newStop.mode);
+      const drawPolyline = (coords) => {
+        L.polyline(coords, { color, weight:4, dashArray:dash, opacity:.9, lineCap:'round', lineJoin:'round' }).addTo(G.routeLayer);
+      };
+
+      if (newStop.mode === 'flight') {
+        drawPolyline([[prev.lat, prev.lng], [newStop.lat, newStop.lng]]);
+      } else {
+        let profile = newStop.mode === 'walk' ? 'foot' : 'driving';
+        try {
+          const res = await fetch(`https://router.project-osrm.org/route/v1/${profile}/${prev.lng},${prev.lat};${newStop.lng},${newStop.lat}?overview=full&geometries=geojson`);
+          const data = await res.json();
+          if (data.code === 'Ok' && data.routes.length) {
+            drawPolyline(data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]));
+          } else throw new Error();
+        } catch {
+          drawPolyline([[prev.lat,prev.lng],[newStop.lat,newStop.lng]]);
+        }
+      }
+
+      L.marker([prev.lat, prev.lng], { icon:mkWp() }).addTo(G.routeLayer);
+      G.liveMarker.setLatLng([newStop.lat, newStop.lng]);
+      G.vehicleMarker.setIcon(mkVehicle(newStop.icon));
+      G.vehicleMarker.setLatLng([newStop.lat, newStop.lng]);
+      
+      G.map.flyTo([newStop.lat, newStop.lng], 12, { animate:true, duration:2 });
+    }
+
+    function fitAllStops() {
+      if (!G.map || G.journey.length < 2) {
+        showToast("Need more stops to fit map!");
+        return;
+      }
+      const bounds = L.latLngBounds(G.journey.map(s => [s.lat, s.lng]));
+      G.map.fitBounds(bounds, { padding:[40, 40] });
+    }
+
+    /* ═══════════════════════════════════════════════════
+       FORM HANDLING & RENDERING
+    ═══════════════════════════════════════════════════ */
+    function selectMode(mode, btn) {
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        b.classList.remove('sel', 'border-2', 'border-brand-500', 'bg-brand-50', 'text-brand-700');
+        b.classList.add('border', 'border-slate-200', 'bg-white', 'text-slate-600');
+      });
+      btn.classList.remove('border', 'border-slate-200', 'bg-white', 'text-slate-600');
+      btn.classList.add('sel', 'border-2', 'border-brand-500', 'bg-brand-50', 'text-brand-700');
+      document.getElementById('input-mode').value = mode;
+    }
+
+    let currentImageBlob = null;
+    document.getElementById('input-images').addEventListener('change', function(e) {
+      if(this.files && this.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          currentImageBlob = e.target.result;
+          const strip = document.getElementById('preview-strip');
+          strip.innerHTML = `<img src="${currentImageBlob}" class="w-full h-full object-cover rounded-2xl opacity-80">`;
+          strip.classList.remove('hidden');
+        };
+        reader.readAsDataURL(this.files[0]);
+      }
+    });
+
+    document.getElementById('post-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.textContent = 'Locating...'; btn.disabled = true;
+
+      const loc = document.getElementById('input-location').value;
+      const note = document.getElementById('input-note').value;
+      const mode = document.getElementById('input-mode').value;
+      
+      let lat = 19.076, lng = 72.877;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}&limit=1`);
+        const data = await res.json();
+        if(data?.length) { lat = +data[0].lat; lng = +data[0].lon; }
+      } catch (e) {}
+
+      const newStop = { 
+        lat, lng, mode, icon: ICONS[mode] || '📍', 
+        title: loc, note, author: 'You', time: 'Just Now', likes: 0,
+        images: currentImageBlob ? [currentImageBlob] : null
+      };
+
+      const prev = G.journey.at(-1);
+      G.journey.push(newStop);
+
+      e.target.reset();
+      currentImageBlob = null;
+      document.getElementById('preview-strip').classList.add('hidden');
+      document.getElementById('preview-strip').innerHTML = '';
+      selectMode('train', document.querySelector('.mode-btn'));
+      btn.innerHTML = 'Post to Timeline'; btn.disabled = false;
+
+      updateAllViews();
+      showToast("Stop Logged Successfully!");
+      if(G.map) await appendSegment(newStop, prev);
+      switchScreen('timeline');
+    });
+
+    function updateAllViews() {
+      let dist = 0, totalHours = 0;
+      for (let i = 1; i < G.journey.length; i++) {
+        const d = getDistKm(G.journey[i-1].lat, G.journey[i-1].lng, G.journey[i].lat, G.journey[i].lng);
+        dist += d;
+        totalHours += (d / (MODE_SPEEDS[G.journey[i].mode] || 50));
+      }
+      
+      let timeStr = '<1h';
+      if (totalHours >= 1) timeStr = `${Math.floor(totalHours)}h ${Math.round((totalHours%1)*60)}m`;
+      else if (totalHours > 0) timeStr = `${Math.round(totalHours*60)}m`;
+
+      const last = G.journey.at(-1);
+
+      if(document.getElementById('hud-dist')) document.getElementById('hud-dist').textContent = dist.toFixed(0);
+      if(document.getElementById('hud-stops')) document.getElementById('hud-stops').textContent = G.journey.length;
+      if(document.getElementById('hud-speed')) document.getElementById('hud-speed').textContent = MODE_SPEEDS[last.mode] || 50;
+      if(document.getElementById('hud-time')) document.getElementById('hud-time').textContent = timeStr;
+      if(document.getElementById('hud-title')) document.getElementById('hud-title').textContent = `${G.journey[0].title.split(',')[0]} → ${last.title.split(',')[0]}`;
+      if(document.getElementById('hud-icon')) document.getElementById('hud-icon').textContent = last.icon;
+      
+      if(document.getElementById('tl-main-title')) document.getElementById('tl-main-title').textContent = `${G.journey[0].title.split(',')[0]} → ${last.title.split(',')[0]} 🌍`;
+      if(document.getElementById('tl-dist')) document.getElementById('tl-dist').textContent = dist.toFixed(0);
+      if(document.getElementById('tl-time')) document.getElementById('tl-time').textContent = timeStr;
+      if(document.getElementById('tl-stops')) document.getElementById('tl-stops').textContent = G.journey.length;
+
+      renderTimeline();
+      renderFeed();
+    }
+
+    function renderTimeline() {
+      const wrap = document.getElementById('tl-wrap');
+      if(!wrap) return;
+      wrap.innerHTML = '';
+      
+      G.journey.forEach((s, i) => {
+        const isLast = i === G.journey.length - 1;
+        const colorClass = modeColor(s.mode) === '#f59e0b' ? 'text-amber-500' : modeColor(s.mode) === '#3b82f6' ? 'text-blue-500' : 'text-brand-500';
+        
+        let html = `
+        <div class="flex gap-4 mb-0 stagger-${(i%4)+1}">
+          <div class="flex flex-col items-center">
+            <div class="w-4 h-4 rounded-full border-4 border-slate-50 ${isLast ? 'bg-brand-500 shadow-glow animate-pulse' : 'bg-slate-800'} z-10 shrink-0"></div>
+            ${!isLast ? `<div class="w-0.5 h-full bg-slate-200 my-1"></div>` : ''}
+          </div>
+          <div class="flex-1 pb-6">
+            <div class="bg-white border ${isLast ? 'border-brand-500 shadow-soft' : 'border-slate-200 shadow-sm'} rounded-2xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition hover:shadow-md" onclick="openMapView()">
+              ${isLast ? `<div class="absolute top-0 right-0 bg-brand-500 text-white text-[9px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">Now</div>` : ''}
+              <div class="flex justify-between items-start mb-2">
+                <h4 class="font-bold text-slate-900 text-sm truncate pr-8">${s.title}</h4>
+                <span class="text-[10px] font-bold text-slate-400 shrink-0">${s.time}</span>
+              </div>
+              <p class="text-xs text-slate-600 mb-3">${s.note}</p>
+              ${s.images ? `<div class="relative overflow-hidden rounded-lg mb-3" ondblclick="event.stopPropagation(); doubleTapLike(this)"><img src="${s.images[0]}" class="w-full h-32 object-cover"></div>` : ''}
+              <div class="flex gap-2 items-center mt-2">
+                <span class="bg-slate-50 text-slate-600 text-[10px] px-2 py-1 rounded-md border border-slate-100 font-bold cursor-pointer hover:bg-slate-100 transition" onclick="event.stopPropagation(); showToast('Liked!')">❤️ ${s.likes}</span>
+                <span class="text-xs font-bold ${colorClass} ml-auto flex items-center gap-1">${s.icon} ${s.mode.toUpperCase()}</span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+        if (!isLast) {
+          const next = G.journey[i+1];
+          const distSeg = getDistKm(s.lat, s.lng, next.lat, next.lng).toFixed(0);
+          html += `
+          <div class="flex gap-4 mb-0 stagger-${(i%4)+1}">
+            <div class="flex flex-col items-center"><div class="w-0.5 h-12 bg-slate-200 border-l-2 border-dashed border-slate-400"></div></div>
+            <div class="flex-1 py-3 flex items-center">
+              <span class="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider flex gap-1 items-center shadow-sm">${next.icon} ${next.mode} · ${distSeg} km</span>
+            </div>
+          </div>`;
+        }
+        wrap.innerHTML += html;
+      });
+    }
+
+    function renderFeed() {
+      const feed = document.getElementById('social-feed');
+      if(!feed) return;
+      feed.innerHTML = '';
+
+      [...G.journey].reverse().forEach((s, i) => {
+        const isLive = i === 0;
+        
+        let mediaHtml = '';
+        if (s.images) {
+          mediaHtml = `<div class="relative w-full h-48 overflow-hidden" ondblclick="doubleTapLike(this)"><img src="${s.images[0]}" class="w-full h-full object-cover"></div>`;
+        } else {
+          mediaHtml = `
+          <div class="h-40 bg-slate-100 relative overflow-hidden cursor-pointer" onclick="openMapView()">
+            <div class="absolute inset-0 bg-grid-pattern opacity-50"></div>
+            <div class="absolute top-1/2 left-[10%] right-[10%] border-t-2 border-dashed border-brand-500"></div>
+            <div class="absolute top-1/2 left-[10%] w-3 h-3 bg-slate-800 border-2 border-white rounded-full -translate-y-1/2 shadow-sm"></div>
+            <div class="absolute top-1/2 left-[60%] w-4 h-4 bg-brand-500 rounded-full -translate-y-1/2 border-2 border-white ${isLive ? 'live-dot-anim' : ''}"></div>
+            <div class="absolute top-3 left-3 flex gap-2">
+              ${isLive ? `<span class="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide flex items-center gap-1 border border-red-100 shadow-sm"><span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span> Live</span>` : ''}
+              <span class="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md shadow-sm border border-white/40">${s.icon} ${s.mode.toUpperCase()}</span>
+            </div>
+          </div>`;
+        }
+
+        feed.innerHTML += `
+        <div class="mx-4 mb-6 bg-white rounded-3xl shadow-soft border ${isLive ? 'border-brand-200' : 'border-slate-100'} overflow-hidden stagger-${(i%4)+1}">
+          ${mediaHtml}
+          <div class="p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-400 to-pink-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">Y</div>
+              <div class="flex-1">
+                <div class="text-xs font-bold text-slate-900">${s.author}</div>
+                <div class="text-[10px] text-slate-500">${s.time} · 📍 ${s.title}</div>
+              </div>
+            </div>
+            <p class="text-sm text-slate-700 mb-4 leading-relaxed">${s.note}</p>
+            <div class="flex gap-2">
+              <button class="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-red-500 transition shadow-sm active:scale-95" onclick="showToast('Liked!')">❤️ ${s.likes}</button>
+              <button class="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:bg-slate-100 transition shadow-sm active:scale-95" onclick="showToast('Comments Opened')">💬 0</button>
+              <button class="ml-auto flex items-center gap-1.5 bg-brand-50 border border-brand-100 px-3 py-1.5 rounded-full text-xs font-bold text-brand-600 hover:bg-brand-100 transition active:scale-95 shadow-sm" onclick="openMapView()">Map ↗</button>
+            </div>
+          </div>
+        </div>`;
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════
+       INTERACTIVE MODALS & CHAT UTILS
+    ═══════════════════════════════════════════════════ */
+    function sosAlert() {
+      switchScreen('chat'); 
+      const msgs = document.getElementById('chat-msgs');
+      const div = document.createElement('div');
+      div.className = 'flex gap-2 items-end mt-4 stagger-1';
+      div.innerHTML = `
+        <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-accent-500 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-4 shadow-sm">P</div>
+        <div class="w-full max-w-[260px]">
+          <div class="text-[10px] text-red-500 font-bold ml-1 mb-0.5 flex items-center gap-1">⚠️ Priya · SOS Alert</div>
+          <div class="bg-red-50 border border-red-200 p-3 rounded-2xl rounded-bl-sm shadow-md">
+            <h4 class="font-bold text-xs text-red-600 mb-1">🆘 I need help</h4>
+            <p class="text-[11px] text-red-900 mb-2">I'm at Dadar station and feeling unsafe. The crowd is very dense and I can't find my way.</p>
+            <div class="bg-white rounded-lg p-2 text-[10px] font-mono text-slate-600 mb-3 border border-red-100">📍 Dadar Railway Station<br>19.0178° N, 72.8478° E</div>
+            <div class="flex gap-2">
+              <button class="flex-1 bg-green-500 text-white text-[10px] font-bold py-2 rounded-lg active:scale-95 transition hover:bg-green-600 shadow-sm" onclick="respondSOS()">✓ On My Way</button>
+              <button class="flex-1 bg-red-500 text-white text-[10px] font-bold py-2 rounded-lg active:scale-95 transition hover:bg-red-600 shadow-sm" onclick="switchScreen('compass')">Compass</button>
+            </div>
+          </div>
+          <div class="text-[9px] text-slate-400 mt-1">Just Now</div>
+        </div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function respondSOS() {
+      const msgs = document.getElementById('chat-msgs');
+      const div = document.createElement('div');
+      div.className = 'flex gap-2 items-end flex-row-reverse mt-4 stagger-1';
+      div.innerHTML = `
+        <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-brand-400 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-4 shadow-sm">M</div>
+        <div class="flex flex-col items-end">
+          <div class="bg-green-500 text-white p-3 rounded-2xl rounded-br-sm text-xs shadow-md max-w-[250px]">✓ On my way! 2 mins to Platform 3 🏃‍♂️</div>
+          <div class="text-[9px] text-slate-400 mt-1">Now</div>
+        </div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      showToast('Response Sent');
+    }
+
+    function sendChatMsg() {
+      const inp = document.getElementById('chat-input-field');
+      const text = inp.value.trim();
+      if (!text) return;
+      const msgs = document.getElementById('chat-msgs');
+      const div = document.createElement('div');
+      div.className = 'flex gap-2 items-end flex-row-reverse mt-4 stagger-1';
+      div.innerHTML = `
+        <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-brand-400 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-4 shadow-sm">M</div>
+        <div class="flex flex-col items-end">
+          <div class="bg-brand-500 text-white p-3 rounded-2xl rounded-br-sm text-xs shadow-md max-w-[250px]">${text.replace(/</g,'&lt;')}</div>
+          <div class="text-[9px] text-slate-400 mt-1">Now · ✓✓</div>
+        </div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      inp.value = '';
+    }
+
+    function showAttachMenu() {
+      const menu = document.createElement('div');
+      menu.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:999;backdrop-filter:blur(10px)';
+      menu.className = "bg-white/90 border border-slate-200 rounded-2xl p-3 flex gap-2 shadow-[0_20px_60px_rgba(0,0,0,0.15)] animate-fadeUp";
+      const opts = [['📍','Location'],['🖼️','Photo'],['🆘','Send SOS'],['📊','Share Stop']];
+      opts.forEach(([icon, label]) => {
+        const b = document.createElement('div');
+        b.className = 'flex flex-col items-center gap-1.5 cursor-pointer p-2 rounded-xl hover:bg-slate-100 transition min-w-[70px]';
+        b.innerHTML = `<span class="text-2xl">${icon}</span><span class="text-[9px] text-slate-600 font-bold whitespace-nowrap">${label}</span>`;
+        b.onclick = () => {
+          menu.remove();
+          if (label === 'Send SOS') sosAlert();
+        };
+        menu.appendChild(b);
+      });
+      document.body.appendChild(menu);
+      setTimeout(() => { if(document.body.contains(menu)) menu.remove(); }, 4000);
+    }
+
+    // Init App
+    switchScreen('splash');
+    updateAllViews();
+  </script>
+</body>
+</html>
